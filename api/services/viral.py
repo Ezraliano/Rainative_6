@@ -1,113 +1,97 @@
 import logging
-from typing import Optional
+from typing import List, Optional, Dict
+import json
+import re
+from services.gemini_utils import gemini_service
 
 logger = logging.getLogger(__name__)
 
 class ViralAnalysisService:
     """
-    Service for analyzing viral potential of content.
+    Service untuk menganalisis potensi viral konten dengan analisis dinamis dari Gemini.
     """
     
     def __init__(self):
         pass
-    
-    async def calculate_viral_score(
-        self, 
-        content: str, 
-        title: str, 
-        views: int, 
-        likes: int
-    ) -> int:
-        """
-        Calculate viral potential score based on content analysis.
-        
-        Args:
-            content: Content text to analyze
-            title: Content title
-            views: View count
-            likes: Like count
-            
-        Returns:
-            Viral score (0-100)
+
+    async def _get_dynamic_engaging_words(self, category: str, content_snippet: str) -> List[str]:
+        """Secara dinamis mendapatkan daftar kata-kata yang menarik dari Gemini."""
+        prompt = f"""
+        Act as a YouTube growth hacking expert. Based on the content category "{category}" and the following snippet, generate a JSON list of 10-15 highly engaging, "viral" keywords and phrases commonly used in successful YouTube titles for this niche.
+        Focus on words that create curiosity, urgency, or promise strong value.
+
+        Content Snippet:
+        ---
+        {content_snippet[:1000]}
+        ---
+
+        Provide your response ONLY as a valid JSON object with a single key "engaging_words" containing a list of strings.
+        Example: {{"engaging_words": ["secret revealed", "life hack", "must-watch"]}}
+
+        JSON Response:
         """
         try:
-            logger.info("Calculating viral score")
-            
+            response_text = await gemini_service._generate_content(prompt)
+            json_match = re.search(r'\{.*\}', response_text, re.DOTALL)
+            if not json_match:
+                logger.error("Gemini did not return a valid JSON object for engaging words.")
+                return []
+            clean_json = json_match.group(0)
+            words_data = json.loads(clean_json)
+            engaging_words = words_data.get("engaging_words", [])
+            if isinstance(engaging_words, list) and all(isinstance(w, str) for w in engaging_words):
+                logger.info(f"Dynamically generated engaging words for category '{category}': {engaging_words}")
+                return [word.lower() for word in engaging_words]
+            return []
+        except Exception as e:
+            logger.error(f"Failed to get dynamic engaging words from Gemini: {e}")
+            return ['how to', 'why', 'secret', 'amazing', 'guide', 'ultimate', 'best', 'worst', 'shocking', 'hack', 'tips', 'tricks']
+
+    def _detect_category(self, title: str, content: str) -> str:
+        """Mendeteksi kategori konten."""
+        text_to_scan = (title + " " + content).lower()
+        categories: Dict[str, List[str]] = {
+            "tech": ["ai", "programming", "software", "gadget", "review"],
+            "business": ["marketing", "startup", "finance", "investment", "strategy"],
+            "tutorial": ["how to", "guide", "step-by-step", "tutorial", "learn"],
+            "entertainment": ["comedy", "vlog", "challenge", "reaction"],
+            "education": ["science", "history", "explained", "documentary"],
+        }
+        for category, keywords in categories.items():
+            if any(keyword in text_to_scan for keyword in keywords):
+                return category
+        return "general"
+
+    async def calculate_viral_score(self, content: str, title: str, views: int, likes: int, comments: List[str]) -> int:
+        """Menghitung skor potensi viral."""
+        try:
+            logger.info("Calculating dynamic viral score...")
             score = 0
-            
-            # Content length factor (optimal length gets higher score)
-            content_length = len(content.split())
-            if 100 <= content_length <= 500:
-                score += 20
-            elif 50 <= content_length <= 800:
-                score += 15
+            content_lower = content.lower()
+            title_lower = title.lower()
+            category = self._detect_category(title_lower, content_lower)
+            logger.info(f"Detected content category: {category}")
+            engaging_words = await self._get_dynamic_engaging_words(category, content)
+            title_score = sum(8 for word in engaging_words if word in title_lower)
+            score += min(title_score, 20)
+            if views > 1000:
+                engagement_ratio = (likes / views) if likes > 0 else 0
+                if engagement_ratio > 0.05: score += 25
+                elif engagement_ratio > 0.03: score += 20
+                elif engagement_ratio > 0.015: score += 15
+                else: score += 10
             else:
                 score += 10
-            
-            # Title engagement factor
-            engaging_words = ['how', 'why', 'secret', 'amazing', 'incredible', 'ultimate', 'best', 'worst', 'shocking']
-            title_lower = title.lower()
-            title_score = sum(5 for word in engaging_words if word in title_lower)
-            score += min(title_score, 25)
-            
-            # View/like ratio factor
-            if views > 0:
-                engagement_ratio = likes / views if likes > 0 else 0
-                if engagement_ratio > 0.05:  # 5% engagement is very good
-                    score += 25
-                elif engagement_ratio > 0.02:  # 2% engagement is good
-                    score += 20
-                elif engagement_ratio > 0.01:  # 1% engagement is average
-                    score += 15
-                else:
-                    score += 10
-            else:
-                score += 15  # Default for new content
-            
-            # Content quality indicators
-            quality_indicators = ['tutorial', 'guide', 'tips', 'tricks', 'hack', 'review', 'comparison']
-            content_lower = content.lower()
-            quality_score = sum(3 for indicator in quality_indicators if indicator in content_lower)
-            score += min(quality_score, 15)
-            
-            # Trending topic bonus (mock implementation)
-            trending_topics = ['ai', 'machine learning', 'productivity', 'business', 'technology', 'tutorial']
-            trending_score = sum(2 for topic in trending_topics if topic in content_lower or topic in title_lower)
-            score += min(trending_score, 15)
-            
-            # Ensure score is within bounds
+            score += 5 
+            quality_and_trends = ['tutorial', 'guide', 'review', 'comparison', 'case study', 'explained', 'documentary', 'ai', 'productivity', 'health', 'finance']
+            quality_score = sum(3 for indicator in quality_and_trends if indicator in content_lower)
+            score += min(quality_score, 20)
+            content_length = len(content.split())
+            if 150 <= content_length <= 700: score += 10
+            else: score += 5
             final_score = max(0, min(100, score))
-            
-            logger.info(f"Calculated viral score: {final_score}")
+            logger.info(f"Dynamic viral score calculated. Category: {category}, Final Score: {final_score}")
             return final_score
-            
         except Exception as e:
-            logger.error(f"Error calculating viral score: {str(e)}")
-            return 65  # Return default moderate score on error
-    
-    def _analyze_engagement_patterns(self, content: str) -> float:
-        """
-        Analyze content for engagement patterns.
-        
-        TODO: Implement advanced engagement analysis
-        """
-        # Placeholder for advanced analysis
-        return 0.5
-    
-    def _check_trending_alignment(self, content: str) -> float:
-        """
-        Check how well content aligns with current trends.
-        
-        TODO: Implement trending topic analysis
-        """
-        # Placeholder for trend analysis
-        return 0.6
-    
-    def _evaluate_content_structure(self, content: str) -> float:
-        """
-        Evaluate content structure for viral potential.
-        
-        TODO: Implement structure analysis
-        """
-        # Placeholder for structure analysis
-        return 0.7
+            logger.error(f"Error calculating dynamic viral score: {str(e)}", exc_info=True)
+            return 70

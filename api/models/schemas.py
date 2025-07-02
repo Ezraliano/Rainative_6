@@ -1,5 +1,5 @@
 from pydantic import BaseModel, Field
-from typing import List, Dict, Optional, Union
+from typing import List, Dict, Optional
 from datetime import datetime
 
 class AnalyzeRequest(BaseModel):
@@ -9,12 +9,14 @@ class AnalyzeRequest(BaseModel):
 
 class VideoMetadata(BaseModel):
     """Video metadata information."""
+    video_id: str = Field(..., description="YouTube video ID")
     title: str = Field(..., description="Video title")
     duration: int = Field(..., description="Video duration in seconds")
     thumbnail_url: str = Field(..., description="Video thumbnail URL")
     channel_name: str = Field(..., description="Channel name")
     view_count: Optional[int] = Field(None, description="Number of views")
     like_count: Optional[int] = Field(None, description="Number of likes")
+    comment_count: Optional[int] = Field(None, description="Number of comments")
     published_at: Optional[datetime] = Field(None, description="Publication date")
     description: Optional[str] = Field(None, description="Video description")
 
