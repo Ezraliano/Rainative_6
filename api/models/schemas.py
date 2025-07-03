@@ -14,9 +14,11 @@ class VideoMetadata(BaseModel):
     duration: int = Field(..., description="Video duration in seconds")
     thumbnail_url: str = Field(..., description="Video thumbnail URL")
     channel_name: str = Field(..., description="Channel name")
+    channel_id: str = Field(..., description="YouTube channel ID") # Ditambahkan
     view_count: Optional[int] = Field(None, description="Number of views")
     like_count: Optional[int] = Field(None, description="Number of likes")
     comment_count: Optional[int] = Field(None, description="Number of comments")
+    subscriber_count: Optional[int] = Field(None, description="Number of subscribers") # Ditambahkan
     published_at: Optional[datetime] = Field(None, description="Publication date")
     description: Optional[str] = Field(None, description="Video description")
 

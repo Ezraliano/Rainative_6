@@ -1,5 +1,5 @@
 from fastapi import APIRouter, HTTPException, UploadFile, File
-from models.schemas import AnalyzeRequest, AnalyzeResponse
+from models.schemas import AnalyzeRequest, AnalyzeResponse, VideoMetadata
 from services.transcriber import TranscriberService, VideoProcessingError
 from services.viral import ViralAnalysisService
 from services.gemini_utils import summarize_transcript, explain_why_viral, generate_content_idea
@@ -36,9 +36,11 @@ async def analyze_content(request: AnalyzeRequest):
         viral_explanation = await explain_why_viral(video_metadata.title, video_metadata.view_count or 0, video_metadata.like_count or 0, overall_summary)
         recommendations = await generate_content_idea("youtube", overall_summary, viral_explanation)
         
+        # --- PERBAIKAN DI SINI ---
+        # Mengubah cara pemanggilan fungsi agar sesuai dengan definisi baru
         viral_score = await viral_service.calculate_viral_score(
-            transcript, video_metadata.title, video_metadata.view_count or 0, 
-            video_metadata.like_count or 0, comments
+            content=transcript,
+            metadata=video_metadata
         )
         
         if viral_score >= 80: viral_label = "Very High Potential"
@@ -52,7 +54,8 @@ async def analyze_content(request: AnalyzeRequest):
         )
     except Exception as e:
         logger.error(f"An unexpected server error occurred: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail="An internal server error occurred.")
+        # Memberikan detail error ke client untuk mempermudah debugging
+        raise HTTPException(status_code=500, detail=f"An internal server error occurred: {type(e).__name__}")
 
 @router.post("/analyze-document", response_model=AnalyzeResponse)
 async def analyze_document(file: UploadFile = File(...)):
@@ -73,8 +76,15 @@ async def analyze_document(file: UploadFile = File(...)):
                 raise HTTPException(status_code=422, detail="Document content is too short or empty.")
             
             overall_summary = await summarize_transcript(document_text)
-            viral_score = await viral_service.calculate_viral_score(document_text, file.filename or "Document", 0, 0, [])
             
+            # Untuk dokumen, kita buat metadata dummy karena tidak relevan
+            dummy_metadata = VideoMetadata(
+                video_id="doc_analysis", title=file.filename or "Document", duration=0,
+                thumbnail_url="", channel_name="", channel_id="", view_count=0, like_count=0,
+                comment_count=0, subscriber_count=0, published_at=None, description=""
+            )
+            viral_score = await viral_service.calculate_viral_score(document_text, dummy_metadata)
+
             if viral_score >= 80: viral_label = "Very High Potential"
             elif viral_score >= 60: viral_label = "Good Potential"
             else: viral_label = "Needs Improvement"
