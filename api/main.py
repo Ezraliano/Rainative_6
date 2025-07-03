@@ -5,7 +5,7 @@ load_dotenv()
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from routers import analyze
+from routers import analyze, analyze_document
 import os
 
 app = FastAPI(
@@ -36,6 +36,7 @@ app.add_middleware(
 
 # Include routers
 app.include_router(analyze.router, prefix="/api", tags=["analyze"])
+app.include_router(analyze_document.router, prefix="/api", tags=["document"])
 
 @app.get("/")
 async def root():

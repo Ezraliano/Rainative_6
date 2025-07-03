@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { FileUp, Youtube, Sparkles, ArrowLeft, Play, Clock, TrendingUp, Lightbulb, Target, Users, Zap, ChevronDown, ChevronUp, Upload, X } from 'lucide-react';
+import DocumentAnalysisResult from './DocumentAnalysisResult';
 
 interface SummaryState {
   isLoading: boolean;
@@ -176,6 +177,17 @@ const InputTabs: React.FC = () => {
     const i = Math.floor(Math.log(bytes) / Math.log(k));
     return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
   };
+
+  // Show document analysis result for document uploads
+  if (summaryState.showSummary && analysisData && summaryState.type === 'document') {
+    return (
+      <DocumentAnalysisResult
+        analysisData={analysisData}
+        filename={selectedFile?.name || 'Document'}
+        onBack={handleBack}
+      />
+    );
+  }
 
   if (summaryState.showSummary && analysisData) {
     return (
@@ -507,7 +519,9 @@ const InputTabs: React.FC = () => {
                 <Sparkles className="h-6 w-6 text-cyan-400 animate-pulse" />
               </div>
             </div>
-            <p className="text-gray-300 text-lg">Analyzing your content...</p>
+            <p className="text-gray-300 text-lg">
+              {activeTab === 'document' ? 'Analyzing your document...' : 'Analyzing your content...'}
+            </p>
             <p className="text-gray-500 text-sm mt-2">This may take a few moments</p>
           </div>
         ) : activeTab === 'youtube' ? (
